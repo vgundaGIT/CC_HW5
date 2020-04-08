@@ -32,8 +32,8 @@ using namespace std;
 #define OUTPUT 1 //Writing to file
 
 ll GB  = 1024*1024*1024;
-ll MEMORY_SIZE  = 8*GB;
-
+//ll MEMORY_SIZE  = 8*GB;
+ll MEMORY_SIZE  = 10*KB;
 
 class File{
     //This data is an array of some K number of lines
@@ -207,63 +207,71 @@ class Controller{
         ll file_size = inputFile->getTotalFileSize();
         switch (type)
         {
-            //case INTERNAL_SORTING:{
-            case EXTERNAL_SORTING:{
-                    //inputFile->Read(num_lines,0);
-                    //string* data = inputFile->getData();                
+            case INTERNAL_SORTING:{
                     string* data = inputFile->Read(num_lines,0);
                     string outfilename = "sorted-data";
                     sort_and_write(data,num_lines,file_size,outfilename);
                 }
                 break;
-            //case EXTERNAL_SORTING:{
-            case INTERNAL_SORTING:{
+            case EXTERNAL_SORTING:{
                     //STEP1: MULTI THREADING PART
                     //Read input file
                     //Decide the size of each file operated by each thread
                     //Load data for each thread
                     //sort all threads individually and 
-                    //for each thread, write output to temp file
-                    int num_threads = opt->getNumThreads();
-                    ll totallinecounter = 0;
-                    ll num_lines_per_thread = (ll)num_lines/num_threads;
-                    //These will be added to the last file
-                    int left_over_lines = num_lines%num_threads;
-                    ll num_lines_to_read = num_lines_per_thread;
-                    thread myThreads[num_threads];
+                    //for each thread, write output to temp fil
+                    int total_num_threads = opt->getNumThreads();
+                    //Chunk size in bytes
+                    ll chunk_size = (ll)(MEMORY_SIZE/total_num_threads);
+                    ll num_lines_per_chunk = (ll)chunk_size/LINE_LENGTH;
+                    ll lines_sorted_per_iteration = num_lines_per_chunk*total_num_threads;
+                    //Number of iterations
+                    int num_iterations = (int)(file_size/MEMORY_SIZE);
+                    //Add these leftover lines to the last chunk
+                    ll leftover_lines = num_lines;
+                    //Position
                     ll pos = 0;
-                    for (size_t i = 0; i < num_threads; i++)
-                    {   
-                        //Last thread
-                        if(i == num_threads -1 ){
-                            num_lines_to_read += left_over_lines;
+                    //Create thread array
+                    thread myThreads[total_num_threads];
+                    int iteration = 0;
+                    while(iteration < num_iterations ||  leftover_lines > 0){
+                        for (int i = 0; i < total_num_threads; i++)
+                        {
+                            if(leftover_lines > 0){
+                                //Read num lines per chunk from the input file
+                                string *data;
+                                if(leftover_lines>num_lines_per_chunk){
+                                    data = inputFile->Read(num_lines_per_chunk,pos);
+                                }
+                                else{
+                                    data = inputFile->Read(leftover_lines,pos);
+                                }
+                                string outfilename = "file_"+to_string(iteration)+"_"+ to_string(i);  
+                                ll file_size = num_lines_per_chunk*LINE_LENGTH;  
+                                myThreads[i] = thread(sort_and_write,data,num_lines_per_chunk,file_size,outfilename);
+                                pos+=num_lines_per_chunk;
+                            }
+                            else{
+                                break;
+                            }
                         }
-                        string *data = inputFile->Read(num_lines_to_read,pos);
-                        string outfilename = "file_"+to_string(i);  
-                        ll file_size = num_lines_to_read*LINE_LENGTH;  
-                        myThreads[i] = thread(sort_and_write,data,num_lines_to_read,file_size,outfilename);
-                        pos+=num_lines_to_read;
+                        for (size_t i = 0; i < total_num_threads; i++)
+                        {
+                            myThreads[i].join();
+                        }
+                        iteration++;
+                        leftover_lines -= lines_sorted_per_iteration;        
                     }
-                    for (size_t i = 0; i < num_threads; i++)
-                    {
-                        myThreads[i].join();
-                    }
-                }
-                
-
-                //Create input file object
-                //Read some x num of lines
-                //Create output temp file for this thread
-                //Give that x lines for this thread to execute
-
-                //There should be a function to be run by the thread, 
-                //Take string array input, perform quicksort and write to give temp file "index.txt"
+                        
+            }
 
                 //STEP2:
                 //Build a min heap from first line of all the files
                 //Extract the min
                 //Repeat until you build the entir file
                 //Write/append to sorted-file once everytime buffer is full
+                
+
 
                 break;
             default:
