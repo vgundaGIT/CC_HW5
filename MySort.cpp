@@ -171,6 +171,19 @@ class Options{
     }
 };
 
+void sort_and_write(string* data,ll num_lines,ll file_size,string outfilename){
+        //Step 2: Sort the data  
+        QuickSort(data, 0, num_lines - 1);  
+        //Step 3: Write to a file
+        //Create new output file                        
+        File *outfile = new File(outfilename,file_size,OUTPUT); //NOTE: Actually file_size will be input file size by number of threads.
+        outfile->setNumDataLines((ll)(file_size/LINE_LENGTH));
+        //outfile->setData();
+        outfile->Write(data,num_lines);
+}
+
+
+
 class Controller{
     int type;
     File *inputFile;
@@ -194,7 +207,8 @@ class Controller{
         ll file_size = inputFile->getTotalFileSize();
         switch (type)
         {
-            case INTERNAL_SORTING:{
+            //case INTERNAL_SORTING:{
+            case EXTERNAL_SORTING:{
                     //inputFile->Read(num_lines,0);
                     //string* data = inputFile->getData();                
                     string* data = inputFile->Read(num_lines,0);
@@ -202,7 +216,8 @@ class Controller{
                     sort_and_write(data,num_lines,file_size,outfilename);
                 }
                 break;
-            case EXTERNAL_SORTING:{
+            //case EXTERNAL_SORTING:{
+            case INTERNAL_SORTING:{
                     //STEP1: MULTI THREADING PART
                     //Read input file
                     //Decide the size of each file operated by each thread
@@ -215,16 +230,24 @@ class Controller{
                     //These will be added to the last file
                     int left_over_lines = num_lines%num_threads;
                     ll num_lines_to_read = num_lines_per_thread;
+                    thread myThreads[num_threads];
+                    ll pos = 0;
                     for (size_t i = 0; i < num_threads; i++)
                     {   
                         //Last thread
                         if(i == num_threads -1 ){
                             num_lines_to_read += left_over_lines;
                         }
-                        //Thread to read and then write
-                        inputFile->Read(num_lines,0);
+                        string *data = inputFile->Read(num_lines_to_read,pos);
+                        string outfilename = "file_"+to_string(i);  
+                        ll file_size = num_lines_to_read*LINE_LENGTH;  
+                        myThreads[i] = thread(sort_and_write,data,num_lines_to_read,file_size,outfilename);
+                        pos+=num_lines_to_read;
                     }
-                    
+                    for (size_t i = 0; i < num_threads; i++)
+                    {
+                        myThreads[i].join();
+                    }
                 }
                 
 
@@ -246,16 +269,6 @@ class Controller{
             default:
                 break;
         }
-    }
-    void sort_and_write(string* data,ll num_lines,ll file_size,string outfilename){
-        //Step 2: Sort the data  
-        QuickSort(data, 0, num_lines - 1);  
-        //Step 3: Write to a file
-        //Create new output file                        
-        File *outfile = new File(outfilename,file_size,OUTPUT); //NOTE: Actually file_size will be input file size by number of threads.
-        outfile->setNumDataLines((ll)(file_size/LINE_LENGTH));
-        //outfile->setData();
-        outfile->Write(data,num_lines);
     }
 
 };
