@@ -88,11 +88,13 @@ class File{
     //Not the best way
     //Have to open myfile before i write
     void Write(){
-        myfile.open(fileName,ios::out | ios::app);
+        //myfile.open(fileName,ios::out | ios::app);
+        ofstream myfile(fileName);
         //myfile.seekg(startLine * LINE_LENGTH,ios_base::beg);
         int count = 0;
         while(count < numDataLines){
-            myfile << data[count];
+            //cout << data[count];
+            myfile << data[count]<<" ";
             count++;
         }
         myfile.close();
@@ -193,14 +195,8 @@ class Controller{
                     ll file_size = inputFile->getTotalFileSize();
                     inputFile->Read(num_lines,0);
                     string* data = inputFile->getData();                
-                    //Step 2: Sort the data  
-                    QuickSort(data, 0, num_lines - 1);  
-                    //Step 3: Write to a file
-                    //Create new output file                        
-                    File *outfile = new File("sorted-data",file_size,OUTPUT); //NOTE: Actually file_size will be input file size by number of threads.
-                    outfile->setNumDataLines((ll)(file_size/LINE_LENGTH));
-                    outfile->setData(data);
-                    outfile->Write();
+                    string outfilename = "sorted-data";
+                    sort_and_write(data,num_lines,file_size,outfilename);
                 }
                 break;
             case EXTERNAL_SORTING:
@@ -229,6 +225,16 @@ class Controller{
             default:
                 break;
         }
+    }
+    void sort_and_write(string* data,ll num_lines,ll file_size,string outfilename){
+        //Step 2: Sort the data  
+        QuickSort(data, 0, num_lines - 1);  
+        //Step 3: Write to a file
+        //Create new output file                        
+        File *outfile = new File(outfilename,file_size,OUTPUT); //NOTE: Actually file_size will be input file size by number of threads.
+        outfile->setNumDataLines((ll)(file_size/LINE_LENGTH));
+        outfile->setData(data);
+        outfile->Write();
     }
 
 };
