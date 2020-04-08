@@ -5,6 +5,7 @@
 //For files
 #include <fstream>
 #include "quicksort.h"
+#include <thread>
 
 using namespace std;
 
@@ -72,32 +73,31 @@ class File{
     }
     //Reads lines. Start index is 0
     //Controller will set how many lines to read
-    int Read(ll numLines,long long startLine){
-        numDataLines = numLines;
-        fileHandle.seekg(startLine * LINE_LENGTH,ios_base::beg);
-        ll count = 0;
-        string line;
-        data = (string *)malloc(numLines*LINE_LENGTH*sizeof(char));
-        while(count<numLines){
-            getline(fileHandle,line);
-            data[count] = line;
-            count++;    
+    string* Read(ll numLines,long long startLine){
+        ifstream infile;
+        infile.open(fileName,ios::binary);
+        infile.seekg(startLine * LINE_LENGTH,ios_base::beg);
+        string *myArray = new string[numLines];
+        for (ll i = 0; i < numLines; i++)
+        {
+            char* line = (char*)malloc(LINE_LENGTH);
+            infile.read(line,LINE_LENGTH);
+            myArray[i] = line;
         }
+        infile.close();
+        return myArray;
     }
     //Write/append data to files
     //Not the best way
     //Have to open myfile before i write
-    void Write(){
-        //myfile.open(fileName,ios::out | ios::app);
-        ofstream myfile(fileName);
-        //myfile.seekg(startLine * LINE_LENGTH,ios_base::beg);
-        int count = 0;
-        while(count < numDataLines){
-            //cout << data[count];
-            myfile << data[count]<<" ";
-            count++;
+    void Write(string* writedata,ll numLines){
+        ofstream outfile(fileName,ios::binary);
+
+        for(ll i = 0; i < numLines; ++i)
+        {
+            outfile.write(writedata[i].data(),LINE_LENGTH);
         }
-        myfile.close();
+
     }
     ll getTotalFileSize(){
         return totalSize;
@@ -174,8 +174,9 @@ class Options{
 class Controller{
     int type;
     File *inputFile;
+    Options* opt;
     public:
-    Controller(File* input){
+    Controller(File* input,Options* options){
         //Type will be set according to this
         inputFile = input;
         if(inputFile->getTotalFileSize() > MEMORY_SIZE){
@@ -184,29 +185,49 @@ class Controller{
         else{
             type = INTERNAL_SORTING;
         }
+        opt = options;
     }
     int execute(){
+        inputFile->Open();
+        //Step 1: Read the data into memory
+        ll num_lines = inputFile->getTotalNumLines(); 
+        ll file_size = inputFile->getTotalFileSize();
         switch (type)
         {
             case INTERNAL_SORTING:{
-                    inputFile->Open();
-                    //Step 1: Read the data into memory
-                    ll num_lines = inputFile->getTotalNumLines(); 
-                    ll file_size = inputFile->getTotalFileSize();
-                    inputFile->Read(num_lines,0);
-                    string* data = inputFile->getData();                
+                    //inputFile->Read(num_lines,0);
+                    //string* data = inputFile->getData();                
+                    string* data = inputFile->Read(num_lines,0);
                     string outfilename = "sorted-data";
                     sort_and_write(data,num_lines,file_size,outfilename);
                 }
                 break;
-            case EXTERNAL_SORTING:
-                //STEP1: MULTI THREADING PART
-                //Read input file
-                //Decide the size of each file operated by each thread
-                //Load data for each thread
-                //sort all threads individually and 
-                //for each thread, write output to temp file
+            case EXTERNAL_SORTING:{
+                    //STEP1: MULTI THREADING PART
+                    //Read input file
+                    //Decide the size of each file operated by each thread
+                    //Load data for each thread
+                    //sort all threads individually and 
+                    //for each thread, write output to temp file
+                    int num_threads = opt->getNumThreads();
+                    ll totallinecounter = 0;
+                    ll num_lines_per_thread = (ll)num_lines/num_threads;
+                    //These will be added to the last file
+                    int left_over_lines = num_lines%num_threads;
+                    ll num_lines_to_read = num_lines_per_thread;
+                    for (size_t i = 0; i < num_threads; i++)
+                    {   
+                        //Last thread
+                        if(i == num_threads -1 ){
+                            num_lines_to_read += left_over_lines;
+                        }
+                        //Thread to read and then write
+                        inputFile->Read(num_lines,0);
+                    }
+                    
+                }
                 
+
                 //Create input file object
                 //Read some x num of lines
                 //Create output temp file for this thread
@@ -233,8 +254,8 @@ class Controller{
         //Create new output file                        
         File *outfile = new File(outfilename,file_size,OUTPUT); //NOTE: Actually file_size will be input file size by number of threads.
         outfile->setNumDataLines((ll)(file_size/LINE_LENGTH));
-        outfile->setData(data);
-        outfile->Write();
+        //outfile->setData();
+        outfile->Write(data,num_lines);
     }
 
 };
@@ -254,18 +275,18 @@ long long fileSize(std::string fileName){
 int main(int argc,char *argv[]){
     //Just have options and controller objects together
     //here
-    Options opt = Options(argc,argv);
+    Options *opt = new Options(argc,argv);
     //If sanity check fails, then all the expected inputs are not present
-    if(!opt.sanityCheck()){
+    if(!opt->sanityCheck()){
         std::cout<<"Incorrect Usage"<<std::endl;
         std::cout<<"Usage: ./ms.out -F [filename] -t [number of threads]"<<std::endl;
         exit(0);
     };
 
-    long long file_size = fileSize(opt.getFileName());
-    File *fh = new File(opt.getFileName(),file_size,INPUT);
+    long long file_size = fileSize(opt->getFileName());
+    File *fh = new File(opt->getFileName(),file_size,INPUT);
 
-    Controller* ctrlr = new Controller(fh);
+    Controller* ctrlr = new Controller(fh,opt);
     ctrlr->execute();
 
     return 0;
