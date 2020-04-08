@@ -204,13 +204,20 @@ class Controller{
                 }
                 break;
             case EXTERNAL_SORTING:
-                //STEP1:
+                //STEP1: MULTI THREADING PART
                 //Read input file
                 //Decide the size of each file operated by each thread
                 //Load data for each thread
                 //sort all threads individually and 
                 //for each thread, write output to temp file
+                
+                //Create input file object
+                //Read some x num of lines
+                //Create output temp file for this thread
+                //Give that x lines for this thread to execute
 
+                //There should be a function to be run by the thread, 
+                //Take string array input, perform quicksort and write to give temp file "index.txt"
 
                 //STEP2:
                 //Build a min heap from first line of all the files
