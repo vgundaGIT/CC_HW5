@@ -23,7 +23,7 @@ long long partition(string arr[],long low, long high){
 
     for (long long j = low; j < high; j++)
     {
-        if(arr[j].compare(0,2,pivot) < 0){
+        if(arr[j].compare(0,10,pivot) < 0){
             i++;
             swap(arr[i],arr[j]);
         }
