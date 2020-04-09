@@ -4,8 +4,11 @@
 #include <string>
 //For files
 #include <fstream>
+#include <bits/stdc++.h>
 #include "quicksort.h"
+#include "minheap.h"
 #include <thread>
+
 
 using namespace std;
 
@@ -116,16 +119,6 @@ class File{
     }
 };
 
-//Node that has to be used for MinHeap
-class Node{
-
-};
-
-//Has function like getmin, add an element etc.,
-class MinHeap{
-
-};
-
 
 //See what all options you can have
 class Options{
@@ -184,6 +177,70 @@ void sort_and_write(string* data,ll num_lines,ll file_size,string outfilename){
 
 
 
+//This needs list of files and output file name
+class FileMerger{
+    string outfile;
+    vector<string> infilenames;
+    public:
+    FileMerger(vector<string> ifile,string ofile){
+        infilenames = ifile;
+        outfile = ofile;
+    }
+    void mergeFiles(){
+        ifstream infile[infilenames.size()];
+        ofstream ofile;
+        int num_input_files = infilenames.size();
+        int file_num = 0;
+        int line_length = 100;
+        //Input files
+        for (size_t i = 0; i < num_input_files; i++)
+        {
+            infile[i].open(infilenames.at(i),ios::binary);
+        }
+        //Output file
+        ofile.open(outfile,ios::binary);
+        //MinHeapNode* harr = new MinHeapNode[num_input_files];
+        MinHeapNode harr[num_input_files];
+        priority_queue<MinHeapNode, vector<MinHeapNode>, comp> pq;
+
+        int i = 0;
+        for (i = 0; i < num_input_files; i++)
+        {
+            /* code */
+            char* line = (char*)malloc(line_length);
+            infile[i].read(line,line_length);
+            harr[i].element = line;
+            harr[i].i = i;    
+            pq.push(harr[i]);
+        }
+        
+        int count = 0;
+        
+        while (count != num_input_files)
+        {
+            // Get the minimum element and store it in output file
+            MinHeapNode root = pq.top();
+            pq.pop();
+            //ofile.write(const_cast<char*>(root.element.c_str()),root.element.length());
+            ofile.write(root.element,line_length);
+            //cout<<"file num is "<<i<<endl;
+            char* line = (char*)malloc(line_length);
+            i = root.i;
+            //Read next element from root.i filehandle
+            if(infile[i].peek() == EOF){
+                count++;
+                continue;
+            }
+            infile[i].read(line,line_length);
+            root.element = line;
+            pq.push(root);
+        }
+        
+    }
+};
+
+
+
 class Controller{
     int type;
     File *inputFile;
@@ -222,11 +279,12 @@ class Controller{
                     //for each thread, write output to temp fil
                     int total_num_threads = opt->getNumThreads();
                     //Chunk size in bytes
-                    ll chunk_size = (ll)(MEMORY_SIZE/total_num_threads);
+                    ll chunk_size = (ll)(MEMORY_SIZE/(total_num_threads*100))*100;
                     ll num_lines_per_chunk = (ll)chunk_size/LINE_LENGTH;
                     ll lines_sorted_per_iteration = num_lines_per_chunk*total_num_threads;
                     //Number of iterations
-                    int num_iterations = (int)(file_size/MEMORY_SIZE);
+                    int num_iterations = (int)(file_size/(100*lines_sorted_per_iteration));
+                    num_iterations += 1;
                     //Add these leftover lines to the last chunk
                     ll leftover_lines = num_lines;
                     //Position
@@ -234,7 +292,11 @@ class Controller{
                     //Create thread array
                     thread myThreads[total_num_threads];
                     int iteration = 0;
-                    while(iteration < num_iterations ||  leftover_lines > 0){
+                    vector<string> temp_files;
+                    int leftoverrun = false;
+                    //while(iteration < num_iterations ||  leftover_lines > 0){
+                    while(iteration < num_iterations){    
+                        int numThreadsRunning = 0;
                         for (int i = 0; i < total_num_threads; i++)
                         {
                             if(leftover_lines > 0){
@@ -245,33 +307,47 @@ class Controller{
                                 }
                                 else{
                                     data = inputFile->Read(leftover_lines,pos);
+                                    leftoverrun = true;
                                 }
                                 string outfilename = "file_"+to_string(iteration)+"_"+ to_string(i);  
+                                temp_files.push_back(outfilename);
                                 ll file_size = num_lines_per_chunk*LINE_LENGTH;  
-                                myThreads[i] = thread(sort_and_write,data,num_lines_per_chunk,file_size,outfilename);
+                                if(leftoverrun == false){
+                                    myThreads[i] = thread(sort_and_write,data,num_lines_per_chunk,file_size,outfilename);                                    
+                                    numThreadsRunning++;
+                                }
+                                else{
+                                    myThreads[i] = thread(sort_and_write,data,leftover_lines,file_size,outfilename);
+                                    numThreadsRunning++;
+                                }
                                 pos+=num_lines_per_chunk;
+                                leftover_lines -=num_lines_per_chunk;
                             }
                             else{
                                 break;
                             }
                         }
-                        for (size_t i = 0; i < total_num_threads; i++)
+                        for (size_t i = 0; i < numThreadsRunning; i++)
                         {
                             myThreads[i].join();
                         }
                         iteration++;
-                        leftover_lines -= lines_sorted_per_iteration;        
+                        //leftover_lines -= lines_sorted_per_iteration;        
                     }
                         
-            }
+                    //Now call the operation of min heap
+                    string outfile = "sorted-data";
+                    FileMerger* fm = new FileMerger(temp_files,outfile);
+                    fm->mergeFiles();
+
+                    }
 
                 //STEP2:
                 //Build a min heap from first line of all the files
                 //Extract the min
-                //Repeat until you build the entir file
-                //Write/append to sorted-file once everytime buffer is full
+                //Repeat until you build the entire file
+                //Write/append to sorted-file once everytime buffer is full              
                 
-
 
                 break;
             default:
