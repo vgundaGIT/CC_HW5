@@ -8,17 +8,9 @@
 #include "quicksort.h"
 #include "minheap.h"
 #include <thread>
-
+#include <chrono>
 
 using namespace std;
-
-//Do the phase 2
-//We need only one thread anyway
-//You may have multiple threads for reading 
-//But you need only one for merging
-
-//Merging k lists. Each list is a file
-//Take min heap approach
 
 //Constants
 //#define 
@@ -37,6 +29,20 @@ using namespace std;
 ll GB  = 1024*1024*1024;
 ll MEMORY_SIZE  = 8*GB;
 //ll MEMORY_SIZE  = 10*KB;
+
+//To implement:
+//1. Timing performace
+// Lets have timing for two phases separately.
+// For merge phase, its simple Just have it there in mergefiles itself
+// For sort phase, which happens in parallel, there should be an array
+// of num_threads that gets updated at a particular index
+// After sort phase, lets add everything and update the global pointer
+//for write and read both
+//Then measure the time during merge phase and then combine them as well.
+//Now, we know how much total time it took.
+double total_write_time = 0;
+double total_read_time = 0;
+double total_sort_time = 0;
 
 class File{
     //This data is an array of some K number of lines
@@ -76,11 +82,14 @@ class File{
     }
     //Reads lines. Start index is 0
     //Controller will set how many lines to read
-    string* Read(ll numLines,long long startLine){
+    //time spent is an array and index is what we are updating
+    string* Read(ll numLines,long long startLine,vector<double> &time_spent, int index){
+        std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
         ifstream infile;
         infile.open(fileName,ios::binary);
         infile.seekg(startLine * LINE_LENGTH,ios_base::beg);
         string *myArray = new string[numLines];
+        //string *myArray[numLines];
         for (ll i = 0; i < numLines; i++)
         {
             char* line = (char*)malloc(LINE_LENGTH);
@@ -88,20 +97,31 @@ class File{
             myArray[i] = line;
         }
         infile.close();
+        std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+        //*time_spent = ;
+        std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+        time_spent[index] = time_span.count();
         return myArray;
     }
     //Write/append data to files
     //Not the best way
     //Have to open myfile before i write
-    void Write(string* writedata,ll numLines){
+    void Write(string* writedata,ll numLines,vector<double> &time_spent, int index){
+        std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+
         ofstream outfile(fileName,ios::binary);
 
         for(ll i = 0; i < numLines; ++i)
         {
             outfile.write(writedata[i].data(),LINE_LENGTH);
         }
-
+        std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+        //*time_spent = ;
+        std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+        delete[] writedata;
+        time_spent[index] = time_span.count();
     }
+
     ll getTotalFileSize(){
         return totalSize;
     }
@@ -164,15 +184,29 @@ class Options{
     }
 };
 
-void sort_and_write(string* data,ll num_lines,ll file_size,string outfilename){
+void sort_operation(string* data,ll num_lines,vector<double>&sort_time_spent,int sort_index){
         //Step 2: Sort the data  
+
+        std::chrono::high_resolution_clock::time_point sort_t1 = std::chrono::high_resolution_clock::now();
         QuickSort(data, 0, num_lines - 1);  
+        std::chrono::high_resolution_clock::time_point sort_t2 = std::chrono::high_resolution_clock::now();
+        //*time_spent = ;
+        std::chrono::duration<double> sort_time_span = std::chrono::duration_cast<std::chrono::duration<double>>(sort_t2 - sort_t1);
+        sort_time_spent[sort_index] = sort_time_span.count();  
+        
+}
+
+void sort_and_write(string* data,ll num_lines,ll file_size,string outfilename,vector<double>&write_time_spent,int write_index,vector<double>&sort_time_spent,int sort_index){
+
+        sort_operation(data,num_lines,sort_time_spent,sort_index);
         //Step 3: Write to a file
         //Create new output file                        
         File *outfile = new File(outfilename,file_size,OUTPUT); //NOTE: Actually file_size will be input file size by number of threads.
         outfile->setNumDataLines((ll)(file_size/LINE_LENGTH));
         //outfile->setData();
-        outfile->Write(data,num_lines);
+        // vector<double> time_spent(1,0);
+        //outfile->Write(data,num_lines,time_spent,0);
+        outfile->Write(data,num_lines,write_time_spent,write_index);
 }
 
 
@@ -206,9 +240,16 @@ class FileMerger{
         int i = 0;
         for (i = 0; i < num_input_files; i++)
         {
+            
             /* code */
             char* line = (char*)malloc(line_length);
+            
+            std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();            
             infile[i].read(line,line_length);
+            std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+            //*time_spent = ;
+            std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+            total_read_time += time_span.count();
             harr[i].element = line;
             harr[i].i = i;    
             pq.push(harr[i]);
@@ -222,7 +263,12 @@ class FileMerger{
             MinHeapNode root = pq.top();
             pq.pop();
             //ofile.write(const_cast<char*>(root.element.c_str()),root.element.length());
+            std::chrono::high_resolution_clock::time_point w1 = std::chrono::high_resolution_clock::now();            
             ofile.write(root.element,line_length);
+            std::chrono::high_resolution_clock::time_point w2 = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> write_time_span = std::chrono::duration_cast<std::chrono::duration<double>>(w2 - w1);
+            total_write_time += write_time_span.count();
+            delete root.element;
             //cout<<"file num is "<<i<<endl;
             char* line = (char*)malloc(line_length);
             i = root.i;
@@ -231,15 +277,18 @@ class FileMerger{
                 count++;
                 continue;
             }
+            std::chrono::high_resolution_clock::time_point r1 = std::chrono::high_resolution_clock::now();
             infile[i].read(line,line_length);
+            std::chrono::high_resolution_clock::time_point r2 = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> read_time_span = std::chrono::duration_cast<std::chrono::duration<double>>(r2 - r1);
+            total_write_time += read_time_span.count();
+            
             root.element = line;
             pq.push(root);
         }
         
     }
 };
-
-
 
 class Controller{
     int type;
@@ -265,9 +314,16 @@ class Controller{
         switch (type)
         {
             case INTERNAL_SORTING:{
-                    string* data = inputFile->Read(num_lines,0);
+                    vector<double> read_time(1,0);
+                    string* data = inputFile->Read(num_lines,0,std::ref(read_time),0);
+                    total_read_time += read_time[0];
                     string outfilename = "sorted-data";
-                    sort_and_write(data,num_lines,file_size,outfilename);
+                    vector<double> write_time(1,0);
+                    vector<double> sort_time(1,0);
+                    int index=0;
+                    sort_and_write(data,num_lines,file_size,outfilename,std::ref(write_time),index,sort_time,index);
+                    total_write_time += write_time[0];
+                    total_sort_time += sort_time[0];
                 }
                 break;
             case EXTERNAL_SORTING:{
@@ -294,8 +350,14 @@ class Controller{
                     int iteration = 0;
                     vector<string> temp_files;
                     int leftoverrun = false;
+                    vector<double> read_time(total_num_threads,0);
+                    vector<double> write_time(total_num_threads,0);
+                    vector<double> sort_time(total_num_threads,0);
                     //while(iteration < num_iterations ||  leftover_lines > 0){
-                    while(iteration < num_iterations){    
+                    while(iteration < num_iterations){
+                        fill(read_time.begin(),read_time.end(),0);    
+                        fill(write_time.begin(),write_time.end(),0);    
+                        fill(sort_time.begin(),sort_time.end(),0);    
                         int numThreadsRunning = 0;
                         for (int i = 0; i < total_num_threads; i++)
                         {
@@ -303,21 +365,21 @@ class Controller{
                                 //Read num lines per chunk from the input file
                                 string *data;
                                 if(leftover_lines>num_lines_per_chunk){
-                                    data = inputFile->Read(num_lines_per_chunk,pos);
+                                    data = inputFile->Read(num_lines_per_chunk,pos,std::ref(read_time),i);
                                 }
                                 else{
-                                    data = inputFile->Read(leftover_lines,pos);
+                                    data = inputFile->Read(leftover_lines,pos,std::ref(read_time),i);
                                     leftoverrun = true;
                                 }
                                 string outfilename = "file_"+to_string(iteration)+"_"+ to_string(i);  
                                 temp_files.push_back(outfilename);
                                 ll file_size = num_lines_per_chunk*LINE_LENGTH;  
                                 if(leftoverrun == false){
-                                    myThreads[i] = thread(sort_and_write,data,num_lines_per_chunk,file_size,outfilename);                                    
+                                    myThreads[i] = thread(sort_and_write,data,num_lines_per_chunk,file_size,outfilename,std::ref(write_time),i,std::ref(sort_time),i);                                    
                                     numThreadsRunning++;
                                 }
                                 else{
-                                    myThreads[i] = thread(sort_and_write,data,leftover_lines,file_size,outfilename);
+                                    myThreads[i] = thread(sort_and_write,data,leftover_lines,file_size,outfilename,std::ref(write_time),i,std::ref(sort_time),i);
                                     numThreadsRunning++;
                                 }
                                 pos+=num_lines_per_chunk;
@@ -327,10 +389,16 @@ class Controller{
                                 break;
                             }
                         }
+
                         for (size_t i = 0; i < numThreadsRunning; i++)
                         {
                             myThreads[i].join();
                         }
+
+                        //Merge all read times 
+                        total_read_time += accumulate(read_time.begin(),read_time.end(),0.0);
+                        total_write_time += accumulate(write_time.begin(),write_time.end(),0.0);
+                        total_sort_time += accumulate(sort_time.begin(),sort_time.end(),0.0);
                         iteration++;
                         //leftover_lines -= lines_sorted_per_iteration;        
                     }
@@ -370,6 +438,10 @@ long long fileSize(std::string fileName){
 }
 
 int main(int argc,char *argv[]){
+
+    double total_time = 0;
+    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+
     //Just have options and controller objects together
     //here
     Options *opt = new Options(argc,argv);
@@ -385,6 +457,25 @@ int main(int argc,char *argv[]){
 
     Controller* ctrlr = new Controller(fh,opt);
     ctrlr->execute();
+
+    cout<<"Total Read time : "<<total_read_time<<endl;
+    cout<<"Total Write time : "<<total_write_time<<endl;
+    cout<<"Total Sort time : "<<total_sort_time<<endl;
+
+    cout<<"file size is "<<file_size<<endl;
+    double write_speed = (file_size*2)/(total_write_time*MB);
+    double read_speed = (file_size*2)/(total_read_time*MB);
+    double sort_speed = (file_size)/(total_sort_time*MB);
+
+    cout<<"Read speed : "<<read_speed<<" MBPS"<<endl;
+    cout<<"Write speed : "<<write_speed<<" MBPS"<<endl;
+    cout<<"Sort speed : "<<sort_speed<<" MBPS"<<endl;
+
+    std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> read_time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+    total_time += read_time_span.count();
+    cout<<"Total MySort time : "<<total_time<<endl;
+    cout<<"MySort speed : "<<(file_size)/(total_time*MB)<<" MBPS"<<endl;
 
     return 0;
 }
