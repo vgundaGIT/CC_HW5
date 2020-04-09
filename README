@@ -1,0 +1,3 @@
+Use this command to run the executable:
+
+./fin.out -F [GENSORT FILE] -t [NUMBER OF THREADS]

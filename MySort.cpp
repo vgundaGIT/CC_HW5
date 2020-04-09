@@ -35,8 +35,8 @@ using namespace std;
 #define OUTPUT 1 //Writing to file
 
 ll GB  = 1024*1024*1024;
-//ll MEMORY_SIZE  = 8*GB;
-ll MEMORY_SIZE  = 10*KB;
+ll MEMORY_SIZE  = 8*GB;
+//ll MEMORY_SIZE  = 10*KB;
 
 class File{
     //This data is an array of some K number of lines
