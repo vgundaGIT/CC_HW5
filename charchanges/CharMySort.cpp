@@ -122,6 +122,11 @@ class File{
         std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
         //*time_spent = ;
         std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+        for (ll i = 0; i < numLines; i++)
+        {
+            delete[] writedata[i];
+        }
+        
         delete[] writedata;
         time_spent[index] = time_span.count();
     }
@@ -476,8 +481,8 @@ int main(int argc,char *argv[]){
     cout<<"Sort speed : "<<sort_speed<<" MBPS"<<endl;
 
     std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> read_time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    total_time += read_time_span.count();
+    std::chrono::duration<double> total_time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+    total_time +=total_time_span.count();
     cout<<"Total MySort time : "<<total_time<<endl;
     cout<<"MySort speed : "<<(file_size)/(total_time*MB)<<" MBPS"<<endl;
 
